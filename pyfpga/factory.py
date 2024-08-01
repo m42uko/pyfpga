@@ -15,9 +15,11 @@ from pyfpga.libero import Libero
 from pyfpga.openflow import Openflow
 from pyfpga.quartus import Quartus
 from pyfpga.vivado import Vivado
+from pyfpga.diamond import Diamond
 
 
 TOOLS = {
+    'diamond': Diamond,
     'ise': Ise,
     'libero': Libero,
     'openflow': Openflow,

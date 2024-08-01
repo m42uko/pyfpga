@@ -1,0 +1,135 @@
+{#
+#
+# Copyright (C) 2015-2024 PyFPGA Project
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+#}
+
+{%- if 'cfg' in steps -%}
+
+# ---------------------
+# Project configuration
+# ---------------------
+
+# Project creation
+set impl_name "impl1"
+prj_project new -name {{ project }} -impl $impl_name -dev {{ part }}
+
+# For now, let's enforce Synplify as LSE (the default) has broken top level generic handling
+prj_syn set synplify -impl $impl_name
+
+# Enable VHDL-2008 globally
+prj_strgy set_value syn_vhdl2008=true
+prj_strgy set_value lse_vhdl2008=true
+
+{% if hooks %}{{ hooks.precfg | join('\n') }}{% endif -%}
+
+{% if files -%}
+# Files inclusion
+{% for name, attr in files.items() -%}
+prj_src add -work {% if 'lib' in attr %}{{ attr.lib }}{% else %}top{% endif %} {{ name }}
+{% endfor %}
+{% endif -%}
+
+{% if constraints -%}
+# Constraints inclusion
+#   Diamond only supports one constraints file, so we need to combine them into the default diamond.lpf.
+#   We can't just do `prj_src add <constraints-file>` multiple times.
+set fileId [open diamond.lpf "w"]
+{% for name, attr in constraints.items() %}
+set fp [open "{{ name }}" r]
+set file_data [read $fp]
+close $fp
+puts -nonewline $fileId $file_data
+{% endfor %}
+close $fileId
+{%- endif %}
+
+{% if top -%}
+# Top-level specification
+prj_impl option top "{{ top }}"
+{% endif %}
+
+{%- if includes %}
+# Verilog Includes
+{% for include in includes -%}
+prj_impl option -impl $impl_name -append {include path} {{ "{"+include+"}" }}
+{% endfor %}
+{%- endif %}
+
+{%- if defines %}
+# Verilog Defines
+{% for key, value in defines.items() -%}
+prj_impl option -impl $impl_name -append VERILOG_DIRECTIVES {{ key }}={{ value }}
+{% endfor -%}
+{% endif -%}
+
+{%- if params %}
+# Verilog Parameters / VHDL Generics
+{% for key, value in params.items() -%}
+prj_impl option -impl $impl_name -append HDL_PARAM {{ key }}={{ value }}
+{% endfor %}
+{%- endif %}
+
+{%- if hooks %}{{ hooks.postcfg | join('\n') }}{% endif %}
+
+# Save project
+prj_project save
+prj_project close
+
+{%- endif %}
+
+{% if 'syn' in steps or 'par' in steps or 'bit' in steps -%}
+
+
+# -----------
+# Design Flow
+# -----------
+
+# Open project
+prj_project open {{ project }}.ldf
+
+{% if 'syn' in steps %}
+# Synthesis
+
+{% if hooks %}{{ hooks.presyn | join('\n') }}{% endif -%}
+
+prj_run Synthesis -impl $impl_name -forceOne
+
+{% if hooks %}{{ hooks.postsyn | join('\n') }}{% endif -%}
+
+{% endif -%}
+
+{% if 'par' in steps -%}
+# Place and Route
+{%- if hooks %}{{ hooks.prepar | join('\n') }}{% endif -%}
+
+prj_run Translate -impl $impl_name -forceOne
+prj_run Map -impl $impl_name -forceOne
+prj_run Map -impl $impl_name -task MapTrace -forceOne
+prj_run Map -impl $impl_name -task MapVHDLSimFile -forceOne
+prj_run PAR -impl $impl_name -forceOne
+prj_run PAR -impl $impl_name -task PARTrace -forceOne
+prj_run PAR -impl $impl_name -task IOTiming -forceOne
+
+{% if hooks %}{{ hooks.postpar | join('\n') }}{% endif -%}
+
+{% endif-%}
+
+{% if 'bit' in steps -%}
+# Bitstream generation
+
+{% if hooks %}{{ hooks.prebit | join('\n') }}{% endif -%}
+
+prj_run Export -impl $impl_name -task Bitgen -forceOne
+
+{% if hooks %}{{ hooks.postbit | join('\n') }}{% endif -%}
+
+{% endif %}
+
+# Save project
+prj_project save
+prj_project close
+
+{% endif %}

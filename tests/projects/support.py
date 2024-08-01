@@ -8,7 +8,7 @@ from pyfpga.factory import Factory
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--tool', default='openflow',
-    choices=['ise', 'libero', 'quartus', 'openflow', 'vivado']
+    choices=['ise', 'libero', 'quartus', 'openflow', 'vivado', 'diamond']
 )
 args = parser.parse_args()
 
